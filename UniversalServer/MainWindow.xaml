@@ -8,11 +8,12 @@
         FontSize="16"
         Height="300"
         Width="600" >
-    <i:Interaction.Triggers>
-        <i:EventTrigger EventName="MouseEnter">
-            <i:InvokeCommandAction Command="{Binding MyCommand}" />
-        </i:EventTrigger>
-    </i:Interaction.Triggers>
+    <Grid>
+            <i:Interaction.Triggers>
+            <i:EventTrigger EventName="Loaded">
+                <i:InvokeCommandAction Command="{Binding LoadedCommand}" />
+            </i:EventTrigger>
+        </i:Interaction.Triggers>
     <Viewbox>
         <StackPanel>
             <StackPanel Orientation="Horizontal">
@@ -101,4 +102,5 @@
             <Label Content="{Binding Status}" Background="AliceBlue"/>
         </StackPanel>
     </Viewbox>
+    </Grid>
 </Window>
