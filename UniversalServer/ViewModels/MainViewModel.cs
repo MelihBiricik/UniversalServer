@@ -25,8 +25,10 @@ namespace UniversalServer.ViewModels
 
         private ICommand _windowLoadedCommand;
         private ICommand _startListeningCommand;
+        private ICommand _stopListeningCommand;
         private IServerContract _serv;
         private string _status;
+        private volatile bool _isRunning = false;
 
         TempValue _tempMaxVal;
         TempValue _tempCurrentVal;
@@ -209,23 +211,81 @@ namespace UniversalServer.ViewModels
             {
                 if (_startListeningCommand == null)
                 {
-                    _startListeningCommand = new RelayCommand(c => StartListening());
+                    _startListeningCommand = new RelayCommand(c => StartListening(), c => !_isRunning);
                 }
                 return _startListeningCommand;
 
             }
         }
 
+        public ICommand StopListeningCommand
+        {
+            get
+            {
+                if (_stopListeningCommand == null)
+                {
+                    _stopListeningCommand = new RelayCommand(c => StopListening(), c => _isRunning);
+                }
+                return _stopListeningCommand;
+
+            }
+        }
+
         private void StartListening()
         {
-            //Nach den Laden des Windows, den Server starten.
-            //_serv = new Server();
-            _serv = new ServerMockUp(); //zum Testen kann auch ein MockUp als Datenquelle verwendet werden.
+            try
+            {
+                // Wenn noch keine Server-Instanz existiert, anlegen und Events abonnieren.
+                if (_serv == null)
+                {
+                    _serv = new ServerMockUp(); //zum Testen kann auch ein MockUp als Datenquelle verwendet werden.
+                    _serv.StatusPropertyChanged += Serv_StatusPropertyChanged;
+                    _serv.MessageReceived += _serv_MessageReceived;
+                }
 
-            _serv.StatusPropertyChanged += Serv_StatusPropertyChanged;
-            _serv.MessageReceived += _serv_MessageReceived;
-            _serv.Start(SelectedIPAdress, PortToListen);
+                // Start oder resume des Servers/Mockups
+                _serv.Start(SelectedIPAdress, PortToListen);
 
+                // Merken, dass wir laufen, damit Commands korrekt aktiv/disabled sind
+                _isRunning = true;
+                Status = "Listening...";
+
+                // Command-Manager neu auswerten damit Buttons ihren Enabled-Status aktualisieren
+                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            }
+            catch (Exception ex)
+            {
+                Status = "Error while starting: " + ex.Message;
+            }
+
+        }
+
+        private void StopListening()
+        {
+            try
+            {
+                if (_serv != null)
+                {
+                    // Pause handling further incoming messages on UI
+                    _isRunning = false;
+
+                    // Pause server but keep instance so Start can resume
+                    _serv.Stop();
+
+                    Status = "Paused listening.";
+
+                    // Update command states
+                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                }
+                else
+                {
+                    Status = "Server is not running.";
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = "Error while stopping: " + ex.Message;
+            }
         }
 
         private void ExecuteWindowLoadedCommand()
@@ -266,121 +326,84 @@ namespace UniversalServer.ViewModels
 
         private void _serv_MessageReceived(string msg)
         {
-            Status = DateTime.Now.ToShortTimeString() + ": " + msg;
-
-            //Message auf analysieren und auf die Eigenschaften verteilen.
-            //Protokoll-Format: Temperatur;Luftfeuchte;Luftdruck;IP des Boards
-            try
+            // Handle incoming messages on a background thread to avoid blocking UI.
+            var incoming = msg;
+            Task.Run(() =>
             {
-                string temp = msg.Split(';')[0].Replace('.', ',');
-
-                double t = Convert.ToDouble(temp);
-
-                TempAktuellValue = new TempValue() { DateAndTime = DateTime.Now, Value = t };
-
-                double luftfeuchte = Convert.ToDouble(msg.Split(';')[1].Replace('.', ','));
-                FeuchteAktuellValue = new HumidValue() { DateAndTime = DateTime.Now, Value = luftfeuchte };
-
-                string d = msg.Split(';')[2].Replace('.', ',');
-                double druck = Convert.ToDouble(d);
-
-                PressCurrentVal = new PressureValue() { DateAndTime = DateTime.Now, Value = druck };
-
-                string ipAdr = msg.Split(';')[3];
-
-                bool wrongCommandDetected = msg.Contains("DROP");
-                if (wrongCommandDetected)
-                    throw new Exception(msg);
-
-
-                //Daten in die Datenbank schreiben.
                 try
                 {
-                    _dba.InsertData(TempAktuellValue, FeuchteAktuellValue, PressCurrentVal, DateTime.Now, ipAdr);
+                    var parts = incoming.Split(';');
+                    var tempStr = parts[0].Replace('.', ',');
+                    var humStr = parts[1].Replace('.', ',');
+                    var pressStr = parts[2].Replace('.', ',');
+                    var ipAdr = parts.Length > 3 ? parts[3] : string.Empty;
+
+                    double t = Convert.ToDouble(tempStr);
+                    double luftfeuchte = Convert.ToDouble(humStr);
+                    double druck = Convert.ToDouble(pressStr);
+
+                    var newTemp = new TempValue() { DateAndTime = DateTime.Now, Value = t };
+                    var newHum = new HumidValue() { DateAndTime = DateTime.Now, Value = luftfeuchte };
+                    var newPress = new PressureValue() { DateAndTime = DateTime.Now, Value = druck };
+
+                    // write to DB on background thread
+                    try
+                    {
+                        _dba.InsertData(newTemp, newHum, newPress, DateTime.Now, ipAdr);
+                    }
+                    catch (Exception dbex)
+                    {
+                        // update status on UI
+                        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => Status = dbex.Message));
+                    }
+
+                    // update UI-bound properties on UI thread
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        // If we've been stopped in the meantime, ignore updates.
+                        if (!_isRunning)
+                        {
+                            return;
+                        }
+
+                        Status = DateTime.Now.ToShortTimeString() + ": " + incoming;
+
+                        TempAktuellValue = newTemp;
+                        FeuchteAktuellValue = newHum;
+                        PressCurrentVal = newPress;
+
+                        // detect wrong command
+                        if (incoming.Contains("DROP"))
+                        {
+                            Status = "Fehler beim Interpretieren der Werte. " + incoming;
+                            return;
+                        }
+
+                        // Max/Min logic
+                        if (TempMaxValue == null || TempAktuellValue.Value > TempMaxValue.Value)
+                            TempMaxValue = TempAktuellValue;
+                        if (TempMinValue == null || TempAktuellValue.Value < TempMinValue.Value)
+                            TempMinValue = TempAktuellValue;
+
+                        if (FeuchteMaxValue == null || FeuchteAktuellValue.Value > FeuchteMaxValue.Value)
+                            FeuchteMaxValue = FeuchteAktuellValue;
+                        if (FeuchteMinValue == null || FeuchteAktuellValue.Value < FeuchteMinValue.Value)
+                            FeuchteMinValue = FeuchteAktuellValue;
+
+                        if (PressMaxVal == null || PressCurrentVal.Value > PressMaxVal.Value)
+                            PressMaxVal = PressCurrentVal;
+                        if (PressMinVal == null || PressCurrentVal.Value < PressMinVal.Value)
+                            PressMinVal = PressCurrentVal;
+                    }));
                 }
                 catch (Exception ex)
                 {
-                    Status = ex.Message;
-                }
-
-                //Max und Min-Werte feststellen und spiechern.
-                if (TempMaxValue != null)
-                {
-                    if (TempAktuellValue.Value > TempMaxValue.Value)
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                     {
-                        TempMaxValue = TempAktuellValue;
-                    }
+                        Status = "Fehler beim Interpretieren der Werte. " + ex.Message + Environment.NewLine + incoming;
+                    }));
                 }
-                else
-                { TempMaxValue = TempAktuellValue; }
-
-                if (TempMinValue != null)
-                {
-                    if (TempAktuellValue.Value < TempMinValue.Value)
-                    {
-                        TempMinValue = TempAktuellValue;
-                    }
-                }
-                else
-                {
-                    TempMinValue = TempAktuellValue;
-                }
-
-                //Feuchte
-                if (FeuchteMaxValue != null)
-                {
-                    if (FeuchteAktuellValue.Value > FeuchteMaxValue.Value)
-                    {
-                        FeuchteMaxValue = FeuchteAktuellValue;
-                    }
-                }
-                else
-                {
-                    FeuchteMaxValue = FeuchteAktuellValue;
-                }
-
-                if (FeuchteMinValue != null)
-                {
-                    if (FeuchteAktuellValue.Value < FeuchteMinValue.Value)
-                    {
-                        FeuchteMinValue = FeuchteAktuellValue;
-                    }
-                }
-                else
-                {
-                    FeuchteMinValue = FeuchteAktuellValue;
-                }
-
-                //Luftdruck
-                if (PressMaxVal != null)
-                {
-                    if (PressCurrentVal.Value > PressMaxVal.Value)
-                    {
-                        PressMaxVal = PressCurrentVal;
-                    }
-                }
-                else
-                {
-                    PressMaxVal = PressCurrentVal;
-                }
-
-                if (PressMinVal != null)
-                {
-                    if (PressCurrentVal.Value < PressMinVal.Value)
-                    {
-                        PressMinVal = PressCurrentVal;
-                    }
-                }
-                else
-                {
-                    PressMinVal = PressCurrentVal;
-                }
-            }
-            catch (Exception ex)
-            {
-                Status = "Fehler beim Interpretieren der Werte. " + ex.Message + Environment.NewLine + msg;
-
-            }
+            });
         }
 
     }

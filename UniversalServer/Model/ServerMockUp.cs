@@ -30,9 +30,17 @@ namespace UniversalServer.Model
             StatusPropertyChanged("Starting Server...");
             Thread.Sleep(500); //Verzögerung simulieren, wenn wir später auf echte Sockets gehen.
 
-            //Timer starten, der uns zyklisch Werte liefert.
-            _tmr = new Timer(new TimerCallback(TimerProc));
-            _tmr.Change(1000, 2000);
+            //Timer starten oder fortsetzen, der uns zyklisch Werte liefert.
+            if (_tmr == null)
+            {
+                _tmr = new Timer(new TimerCallback(TimerProc));
+                _tmr.Change(1000, 2000);
+            }
+            else
+            {
+                // resume timer
+                try { _tmr.Change(1000, 2000); } catch { }
+            }
 
             StatusPropertyChanged("Waiting for Connection...");
         }
@@ -66,6 +74,23 @@ namespace UniversalServer.Model
                 ip;
 
             MessageReceived(data);
+        }
+
+        public void Stop()
+        {
+            try
+            {
+                if (_tmr != null)
+                {
+                    // pause timer callbacks but keep timer instance so we can resume later
+                    try { _tmr.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                }
+                StatusPropertyChanged("Mockup paused.");
+            }
+            catch (Exception ex)
+            {
+                StatusPropertyChanged("Error pausing mockup: " + ex.Message);
+            }
         }
 
     }

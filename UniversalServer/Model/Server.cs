@@ -77,5 +77,38 @@ namespace UniversalServer.Model
             Socket s = (Socket)ar.AsyncState;
             s.EndSend(ar);
         }
+
+        public void Stop()
+        {
+            try
+            {
+                StatusPropertyChanged("Stopping server...");
+
+                if (_serverSocket != null)
+                {
+                    try
+                    {
+                        _serverSocket.Close();
+                    }
+                    catch { }
+                    _serverSocket = null;
+                }
+
+                if (_clients != null)
+                {
+                    foreach (var c in _clients)
+                    {
+                        try { c.Shutdown(SocketShutdown.Both); c.Close(); } catch { }
+                    }
+                    _clients.Clear();
+                }
+
+                StatusPropertyChanged("Server stopped.");
+            }
+            catch (Exception ex)
+            {
+                StatusPropertyChanged("Error stopping server: " + ex.Message);
+            }
+        }
     }
 }

@@ -12,5 +12,6 @@ namespace UniversalServer.Model
         event StatusChangedEventHandler StatusPropertyChanged;
         event MessageReceivedEventHandler MessageReceived;
         void Start(IPAddress ipadr, int port);
+        void Stop();
     }
 }

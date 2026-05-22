@@ -2,105 +2,133 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
-       
-        xmlns:system="clr-namespace:System;assembly=mscorlib"
-        FontFamily="Segoe UI Emoji"
-        FontSize="16"
-        Height="300"
-        Width="600" >
-    <Grid>
-            <i:Interaction.Triggers>
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        Title="Universal Server"
+        FontFamily="Segoe UI"
+        FontSize="15"
+        Height="650
+        "
+        Width="950"
+        Background="White"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}">
+
+    <Grid Margin="24">
+        <i:Interaction.Triggers>
             <i:EventTrigger EventName="Loaded">
                 <i:InvokeCommandAction Command="{Binding LoadedCommand}" />
             </i:EventTrigger>
         </i:Interaction.Triggers>
-    <Viewbox>
-        <StackPanel>
-            <StackPanel Orientation="Horizontal">
-                <Label>IP-Adresse:</Label>
-                <ComboBox ItemsSource="{Binding AvailableIPAdresses}" SelectedItem="{Binding SelectedIPAdress}"></ComboBox>
-                <Label>Port:</Label>
-                <TextBox Text="{Binding PortToListen}"></TextBox>
-                <Button Command="{Binding StartListeningCommand}">Start Listening...</Button>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition/>
+            <RowDefinition Height="70.117"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="🌍 IntelliHome"
+                   Style="{StaticResource HeaderText}" Margin="0,0,0,16" Grid.RowSpan="2"/>
+
+        <Border Grid.Row="2" Style="{StaticResource CustomCard}" VerticalAlignment="Top" Height="427">
+            <StackPanel Height="auto">
+
+                <WrapPanel Margin="0,0,0,24" VerticalAlignment="Center">
+                    <TextBlock Text="Raum:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Medium"/>
+                    <ComboBox Width="220" Margin="0,0,20,0" 
+                              ItemsSource="{Binding AvailableIPAdresses}"
+                              SelectedItem="{Binding SelectedIPAdress}"
+                              Style="{StaticResource MaterialDesignFilledComboBox}"/>
+
+                    <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Medium"/>
+                    <TextBox Width="120" Margin="0,0,20,0" 
+                             Text="{Binding PortToListen}"
+                             Style="{StaticResource MaterialDesignFilledTextBox}"/>
+
+                    <Button Content="START LISTENING"
+                            Margin="20,0,40,0"
+                            Command="{Binding StartListeningCommand}"
+                            Style="{StaticResource PrimaryButton}"/>
+                    
+                    <Button Content="STOP LISTENING"
+                            Command="{Binding StopListeningCommand}"
+                            Style="{StaticResource PrimaryButton}" RenderTransformOrigin="0.934,0.492"/>
+
+                </WrapPanel>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="48"/>
+                        <RowDefinition Height="50"/>
+                        <RowDefinition Height="50"/>
+                        <RowDefinition Height="54"/>
+                        <RowDefinition Height="50"/>
+                        <RowDefinition Height="50"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource TableHeaderCell}">
+                        <TextBlock Text="Messwert" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource TableHeaderCell}">
+                        <TextBlock Text="🌡 Temperatur" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource TableHeaderCell}">
+                        <TextBlock Text="💧 Luftfeuchte" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border Grid.Row="0" Grid.Column="3" Style="{StaticResource TableHeaderCell}">
+                        <TextBlock Text="📈 Luftdruck" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <TextBlock Text="Max-Datum" Grid.Row="1" Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource DataValueText}" Text="{Binding TempMaxValue.DateAndTime, StringFormat='dd.MM.yyyy HH:mm:ss'}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource DataValueText}" Text="{Binding FeuchteMaxValue.DateAndTime, StringFormat='dd.MM.yyyy HH:mm:ss'}"/>
+                    <TextBlock Grid.Row="1" Grid.Column="3" Style="{StaticResource DataValueText}" Text="{Binding PressMaxVal.DateAndTime, StringFormat='dd.MM.yyyy HH:mm:ss'}"/>
+
+                    <TextBlock Text="Max" Grid.Row="2" Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DataValueText}" Text="{Binding TempMaxValue.Value}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource DataValueText}" Text="{Binding FeuchteMaxValue.Value}"/>
+                    <TextBlock Grid.Row="2" Grid.Column="3" Style="{StaticResource DataValueText}" Text="{Binding PressMaxVal.Value}"/>
+
+                    <TextBlock Text="{Binding TempAktuellValue.DateAndTime, StringFormat='dd.MM.yyyy HH:mm:ss'}" Grid.Row="3" Grid.Column="0" FontWeight="Bold" VerticalAlignment="Center"/>
+
+                    <Border Grid.Row="3" Grid.Column="1" Style="{StaticResource ValueBox}" Background="{StaticResource TempContainerBrush}">
+                        <TextBlock Text="{Binding TempAktuellValue.Value}" Foreground="{StaticResource ContainerTextBrush}" FontWeight="Bold" HorizontalAlignment="Center"/>
+                    </Border>
+
+                    <Border Grid.Row="3" Grid.Column="2" Style="{StaticResource ValueBox}" Background="{StaticResource FeuchteContainerBrush}">
+                        <TextBlock Text="{Binding FeuchteAktuellValue.Value}" Foreground="{StaticResource ContainerTextBrush}" FontWeight="Bold" HorizontalAlignment="Center"/>
+                    </Border>
+
+                    <Border Grid.Row="3" Grid.Column="3" Style="{StaticResource ValueBox}" Background="{StaticResource DruckContainerBrush}">
+                        <TextBlock Text="{Binding PressCurrentVal.Value}" Foreground="{StaticResource ContainerTextBrush}" FontWeight="Bold" HorizontalAlignment="Center"/>
+                    </Border>
+
+                    <TextBlock Text="Min" Grid.Row="4" Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center" Cursor="AppStarting" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource DataValueText}" Text="{Binding TempMinValue.Value}"/>
+                    <TextBlock Grid.Row="4" Grid.Column="2" Style="{StaticResource DataValueText}" Text="{Binding FeuchteMinValue.Value}"/>
+                    <TextBlock Grid.Row="4" Grid.Column="3" Style="{StaticResource DataValueText}" Text="{Binding PressMinVal.Value}"/>
+
+                    <TextBlock Text="Min-Datum" Grid.Row="5" Grid.Column="0" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource DataValueText}" Text="{Binding TempMinValue.DateAndTime, StringFormat='dd.MM.yyyy HH:mm:ss'}"/>
+                    <TextBlock Grid.Row="5" Grid.Column="2" Style="{StaticResource DataValueText}" Text="{Binding FeuchteMinValue.DateAndTime, StringFormat='dd.MM.yyyy HH:mm:ss'}"/>
+                    <TextBlock Grid.Row="5" Grid.Column="3" Style="{StaticResource DataValueText}" Text="{Binding PressMinVal.DateAndTime, StringFormat='dd.MM.yyyy HH:mm:ss'}"/>
+                </Grid>
             </StackPanel>
-            <Grid ShowGridLines="True">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+        </Border>
 
-                <!-- Row 0 Bezeichnungen -->
-                <Label Content="Temperatur" Grid.Row="0" Grid.Column="1" />
-                <Label Content="Luftfeuchte" Grid.Row="0" Grid.Column="2" />
-                <Label Content="Luftdruck" Grid.Row="0" Grid.Column="3" />
-
-                <!-- Row 1 Max-Datum -->
-                <Label Content="Max-Datum" Grid.Row="1" Grid.Column="0" />
-                <Label Content="{Binding TempMaxValue.DateAndTime , FallbackValue='31.8.2018, 16:45'}"
-                    ContentStringFormat="dd.MM.yyyy HH:mm:ss"
-                HorizontalContentAlignment="Stretch"  Grid.Row="1" Grid.Column="1"  />
-                <Label Content="{Binding  FeuchteMaxValue.DateAndTime, FallbackValue='31.8.2018, 16:45'}"
-                    ContentStringFormat="dd.MM.yyyy HH:mm:ss"
-                HorizontalContentAlignment="Stretch"  Grid.Row="1" Grid.Column="2"  />
-                <Label Content="{Binding PressMaxVal.DateAndTime , FallbackValue='1.8.2018, 6:32'}"
-                    ContentStringFormat="dd.MM.yyyy HH:mm:ss"
-                HorizontalContentAlignment="Stretch"  Grid.Row="1" Grid.Column="3"  />
-
-                <!-- Row 2 Max-Werte -->
-                <Label Content="Max:" HorizontalContentAlignment="Stretch" Grid.Row="2" Grid.Column="0" />
-                <Label Content="{Binding TempMaxValue.Value, FallbackValue=33.5}"
-                 HorizontalContentAlignment="Stretch" Grid.Row="2" Grid.Column="1"  />
-                <Label Content="{Binding FeuchteMaxValue.Value, FallbackValue='99.6 %'}"
-                 HorizontalContentAlignment="Stretch" Grid.Row="2" Grid.Column="2" />
-                <Label Content="{Binding PressMaxVal.Value, FallbackValue='1110 hPa'}"
-                 HorizontalContentAlignment="Stretch" Grid.Row="2" Grid.Column="3" />
-
-                <!-- Row 3-->
-                <Label Content= "{Binding TempAktuellValue.DateAndTime}"
-                Grid.Row="3" Grid.Column="0"
-                   ContentStringFormat="dd.MM.yyyy HH:mm:ss"
-                   Background="AliceBlue"/>
-                <Label Content="{Binding TempAktuellValue.Value , FallbackValue='23,5 °C'}" Background="AliceBlue"
-                HorizontalContentAlignment="Stretch"  Grid.Row="3" Grid.Column="1" />
-                <Label Content="{Binding FeuchteAktuellValue.Value , FallbackValue='56 %'}" Background="AliceBlue"
-                HorizontalContentAlignment="Stretch"  Grid.Row="3" Grid.Column="2" />
-                <Label Content="{Binding PressCurrentVal.Value , FallbackValue='879 hPa'}" Background="AliceBlue"
-                HorizontalContentAlignment="Stretch"  Grid.Row="3" Grid.Column="3" />
-
-                <!-- Row 4-->
-                <Label Content="Min:" Grid.Row="4" Grid.Column="0" />
-                <Label Content="{Binding TempMinValue.Value , FallbackValue='-12,2 °C'}"
-                HorizontalContentAlignment="Stretch"  Grid.Row="4" Grid.Column="1" />
-                <Label Content="{Binding FeuchteMinValue.Value , FallbackValue='22 %'}"
-                HorizontalContentAlignment="Stretch"  Grid.Row="4" Grid.Column="2" />
-                <Label Content="{Binding PressMinVal.Value , FallbackValue='521 hPa'}"
-                HorizontalContentAlignment="Stretch"  Grid.Row="4" Grid.Column="3" />
-
-                <!--Row 5-->
-                <Label Content="Min-Datum" Grid.Row="5" Grid.Column="0" />
-                <Label Content="{Binding TempMinValue.DateAndTime , FallbackValue='19.2.2018, 5:45'}"
-                    ContentStringFormat="dd.MM.yyyy HH:mm:ss"
-                HorizontalContentAlignment="Stretch"  Grid.Row="5" Grid.Column="1"  />
-                <Label Content="{Binding FeuchteMinValue.DateAndTime , FallbackValue='31.8.2018, 16:45'}"
-                    ContentStringFormat="dd.MM.yyyy HH:mm:ss"
-                HorizontalContentAlignment="Stretch"  Grid.Row="5" Grid.Column="2"  />
-                <Label Content="{Binding PressMinVal.DateAndTime , FallbackValue='1.8.2018, 6:32'}"
-                    ContentStringFormat="dd.MM.yyyy HH:mm:ss"
-                HorizontalContentAlignment="Stretch"  Grid.Row="5" Grid.Column="3"  />
-            </Grid>
-            <Label Content="Status: " Background="AliceBlue" Grid.Row="6" Grid.Column="0"/>
-            <Label Content="{Binding Status}" Background="AliceBlue"/>
-        </StackPanel>
-    </Viewbox>
+        <Border Grid.Row="3" Style="{StaticResource CustomCard}" Padding="16" Margin="0,8,0,16">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Status:" FontWeight="Bold" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Status}" Style="{StaticResource StatusText}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
