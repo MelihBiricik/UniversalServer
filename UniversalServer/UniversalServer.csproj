@@ -134,6 +134,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Model\Raum.cs" />
     <Compile Include="Model\ConnectionData.cs" />
     <Compile Include="Model\DBAccess.cs" />
     <Compile Include="Model\HumidValue.cs" />

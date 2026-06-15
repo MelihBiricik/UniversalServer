@@ -36,6 +36,66 @@ namespace UniversalServer.Model
                 throw ex2;
             }
         }
+        public List<Raum> GetRooms()
+        {
+            var rooms = new List<Raum>();
+            //try
+            //{
+                OpenConnectionToDBServer();
+                string query = "SELECT SensorID, Typ FROM Sensor ORDER BY Typ";
+                using (MySqlCommand cmd = new MySqlCommand(query, _myConnection))
+                using (MySqlDataReader reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        rooms.Add(new Raum
+                        {
+                            RaumID = reader.GetInt32("SensorID"),
+                            Name = reader.GetString("Typ")
+                        });
+                    }
+                }
+                _myConnection.Close();
+            //}
+            //catch (Exception ex)
+            //{
+            //    MessageBox.Show("Fehler beim Laden der Räume: " + ex.Message);
+            //}
+            return rooms;
+        }
+
+        public (TempValue temp, HumidValue humid, PressureValue press) GetLatestDataForRoom(int sensorId)
+        {
+            TempValue temp = null;
+            HumidValue humid = null;
+            PressureValue press = null;
+            try
+            {
+                OpenConnectionToDBServer();
+                string query = "SELECT Zeitpunkt, Temperatur, Luftfeuchtigkeit, Luftdruck FROM Messwerte WHERE SensorID = @sid ORDER BY Zeitpunkt DESC LIMIT 1";
+                using (MySqlCommand cmd = new MySqlCommand(query, _myConnection))
+                {
+                    cmd.Parameters.AddWithValue("@sid", sensorId);
+                    using (MySqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            DateTime dt = reader.GetDateTime("Zeitpunkt");
+                            temp = new TempValue { DateAndTime = dt, Value = Convert.ToDouble(reader["Temperatur"]) };
+                            humid = new HumidValue { DateAndTime = dt, Value = Convert.ToDouble(reader["Luftfeuchtigkeit"]) };
+                            press = new PressureValue { DateAndTime = dt, Value = Convert.ToDouble(reader["Luftdruck"]) };
+                        }
+                    }
+                }
+                _myConnection.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Fehler beim Laden der Raumdaten: " + ex.Message);
+            }
+            return (temp, humid, press);
+        }
+
         public void InsertData(TempValue tv, HumidValue hv, PressureValue pv, DateTime dt, string ip)
         {
             try

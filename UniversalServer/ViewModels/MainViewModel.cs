@@ -22,6 +22,9 @@ namespace UniversalServer.ViewModels
         List<IPAddress> _avIPAdresses;
         int _portToListen;
         IPAddress _selectedIPAdress;
+        List<Raum> _availableRooms;
+        Raum _selectedRaum;
+        private bool _isDbConnected = false;
 
         private ICommand _windowLoadedCommand;
         private ICommand _startListeningCommand;
@@ -82,6 +85,30 @@ namespace UniversalServer.ViewModels
             {
                 _selectedIPAdress = value;
                 OnPropertyChanged("SelectedIPAdress");
+            }
+        }
+
+        public ObservableCollection<Raum> AvailableRooms
+        {
+            get => _availableRooms != null
+                ? new ObservableCollection<Raum>(_availableRooms)
+                : new ObservableCollection<Raum>();
+            set
+            {
+                _availableRooms = value.ToList();
+                OnPropertyChanged("AvailableRooms");
+            }
+        }
+
+        public Raum SelectedRaum
+        {
+            get => _selectedRaum;
+            set
+            {
+                _selectedRaum = value;
+                OnPropertyChanged("SelectedRaum");
+                if (_selectedRaum != null)
+                    LoadRoomData(_selectedRaum.RaumID);
             }
         }
 
@@ -205,6 +232,8 @@ namespace UniversalServer.ViewModels
         }
 
 
+        public ICommand LoadedCommand => WindowLoaded;
+
         public ICommand StartListeningCommand
         {
             get
@@ -290,30 +319,122 @@ namespace UniversalServer.ViewModels
 
         private void ExecuteWindowLoadedCommand()
         {
-            try
-            {
-                _dba.OpenConnectionToDBServer();
-            }
-            catch (Exception ex)
-            {
-                Status = ex.Message;
-            }
+            //try
+            //{
+            //    _dba.OpenConnectionToDBServer();
+            //}
+            //catch (Exception ex)
+            //{
+            //    Status = ex.Message;
+            //}
 
             try
             {
                 IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-                //IPAddress ipAddress = ipHostInfo.AddressList[6];
                 var ipList = new ObservableCollection<IPAddress>(ipHostInfo.AddressList);
-               
                 ipList.Add(IPAddress.Loopback);
                 AvailableIPAdresses = ipList;
-
-                //SelectedIPAdress = ipHostInfo.AddressList[0];
-                SelectedIPAdress = ipList.Where(adr => adr == IPAddress.Loopback).First();
+                SelectedIPAdress = ipList.First(adr => adr == IPAddress.Loopback);
             }
             catch (Exception ex)
             {
                 Status = ex.Message;
+            }
+
+            try
+            {
+                var rooms = _dba.GetRooms();
+                AvailableRooms = new ObservableCollection<Raum>(rooms);
+                _isDbConnected = true;
+            }
+            catch (Exception ex)
+            {
+                Status = ex.Message;
+                _isDbConnected = false;
+                AvailableRooms = new ObservableCollection<Raum>(GetMockRooms());
+            }
+        }
+
+        private List<Raum> GetMockRooms()
+        {
+            return new List<Raum>
+            {                 
+                 new Raum { RaumID = 1, Name = "Wohnzimmer" },
+                 new Raum { RaumID = 2, Name = "Küche" },
+                 new Raum { RaumID = 3, Name = "Bad" },
+                 new Raum { RaumID = 4, Name = "Kinderzimmer" },
+                 new Raum { RaumID = 5, Name = "Terasse" },
+            };
+        }
+
+        private (TempValue temp, HumidValue humid, PressureValue press) GetMockDataForRoom(int raumId)
+        {
+            DateTime now = DateTime.Now;
+            switch (raumId)
+            {
+                case 1: return (new TempValue    { DateAndTime = now, Value = 21.5 },
+                                new HumidValue   { DateAndTime = now, Value = 48.0 },
+                                new PressureValue{ DateAndTime = now, Value = 1013.0 });
+                case 2: return (new TempValue    { DateAndTime = now, Value = 23.0 },
+                                new HumidValue   { DateAndTime = now, Value = 55.0 },
+                                new PressureValue{ DateAndTime = now, Value = 1012.0 });
+                case 3: return (new TempValue    { DateAndTime = now, Value = 22.0 },
+                                new HumidValue   { DateAndTime = now, Value = 65.0 },
+                                new PressureValue{ DateAndTime = now, Value = 1011.0 });
+                case 4: return (new TempValue    { DateAndTime = now, Value = 20.0 },
+                                new HumidValue   { DateAndTime = now, Value = 50.0 },
+                                new PressureValue{ DateAndTime = now, Value = 1013.5 });
+                case 5: return (new TempValue    { DateAndTime = now, Value = 18.5 },
+                                new HumidValue   { DateAndTime = now, Value = 60.0 },
+                                new PressureValue{ DateAndTime = now, Value = 1010.0 });
+                default: return (new TempValue    { DateAndTime = now, Value = 0.0 },
+                                 new HumidValue   { DateAndTime = now, Value = 0.0 },
+                                 new PressureValue{ DateAndTime = now, Value = 0.0 });
+            }
+        }
+
+        private void LoadRoomData(int sensorId)
+        {
+            if (!_isDbConnected)
+            {
+                Status = $"Keine DB-Verbindung – Mock-Daten für: {_selectedRaum.Name}";
+                //return;
+                var (mockTemp, mockHumid, mockPress) = GetMockDataForRoom(sensorId);
+                TempAktuellValue  = mockTemp;
+                TempMaxValue      = mockTemp;
+                TempMinValue      = mockTemp;
+                FeuchteAktuellValue = mockHumid;
+                FeuchteMaxValue     = mockHumid;
+                FeuchteMinValue     = mockHumid;
+                PressCurrentVal   = mockPress;
+                PressMaxVal       = mockPress;
+                PressMinVal       = mockPress;
+                return;
+            }
+            try
+            {
+                var (temp, humid, press) = _dba.GetLatestDataForRoom(sensorId);
+                if (temp != null)
+                {
+                    TempAktuellValue = temp;
+                    TempMaxValue = temp;
+                    TempMinValue = temp;
+                    FeuchteAktuellValue = humid;
+                    FeuchteMaxValue = humid;
+                    FeuchteMinValue = humid;
+                    PressCurrentVal = press;
+                    PressMaxVal = press;
+                    PressMinVal = press;
+                    Status = $"Raumdaten geladen: {_selectedRaum.Name}";
+                }
+                else
+                {
+                    Status = $"Keine Daten für Raum: {_selectedRaum.Name}";
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = "Fehler beim Laden: " + ex.Message;
             }
         }
 

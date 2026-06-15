@@ -34,15 +34,25 @@
         <Border Grid.Row="2" Style="{StaticResource CustomCard}" VerticalAlignment="Top" Height="427">
             <StackPanel Height="auto">
 
-                <WrapPanel Margin="0,0,0,24" VerticalAlignment="Center">
+                <WrapPanel Margin="0,0,0,12" VerticalAlignment="Center">
                     <TextBlock Text="Raum:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Medium"/>
-                    <ComboBox Width="220" Margin="0,0,20,0" 
+                    <ComboBox Width="220" Margin="0,0,20,0"
+                              ItemsSource="{Binding AvailableRooms}"
+                              SelectedItem="{Binding SelectedRaum}"
+                              DisplayMemberPath="Name"
+                              Style="{StaticResource MaterialDesignFilledComboBox}"/>
+                </WrapPanel>
+
+                <WrapPanel Margin="0,0,0,24" VerticalAlignment="Center">
+                    <!-- IP-Auswahl für den TCP-Server -->
+                    <TextBlock Text="IP:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Medium"/>
+                    <ComboBox Width="220" Margin="0,0,20,0"
                               ItemsSource="{Binding AvailableIPAdresses}"
                               SelectedItem="{Binding SelectedIPAdress}"
                               Style="{StaticResource MaterialDesignFilledComboBox}"/>
 
                     <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Medium"/>
-                    <TextBox Width="120" Margin="0,0,20,0" 
+                    <TextBox Width="120" Margin="0,0,20,0"
                              Text="{Binding PortToListen}"
                              Style="{StaticResource MaterialDesignFilledTextBox}"/>
 
@@ -50,7 +60,7 @@
                             Margin="20,0,40,0"
                             Command="{Binding StartListeningCommand}"
                             Style="{StaticResource PrimaryButton}"/>
-                    
+
                     <Button Content="STOP LISTENING"
                             Command="{Binding StopListeningCommand}"
                             Style="{StaticResource PrimaryButton}" RenderTransformOrigin="0.934,0.492"/>
