@@ -82,11 +82,12 @@ namespace UniversalServer.Model
         {
             using (var conn = OpenConnection())
             {
-                int sensorId = GetRandomSensorId(conn);
-
+                // Wählt in derselben Anweisung einen zufälligen, existierenden Sensor aus,
+                // damit kein separater SELECT nötig ist und kein Sensor zwischen Auswahl
+                // und Insert verschwinden kann.
                 const string insertQuery =
                     "INSERT INTO Messwerte (Zeitpunkt, Temperatur, Luftfeuchtigkeit, Luftdruck, SensorID) " +
-                    "VALUES(@time, @temp, @hum, @press, @sID)";
+                    "SELECT @time, @temp, @hum, @press, SensorID FROM Sensor ORDER BY RAND() LIMIT 1";
 
                 using (var cmd = new MySqlCommand(insertQuery, conn))
                 {
@@ -94,21 +95,11 @@ namespace UniversalServer.Model
                     cmd.Parameters.AddWithValue("@temp",  tv.Value);
                     cmd.Parameters.AddWithValue("@hum",   hv.Value);
                     cmd.Parameters.AddWithValue("@press", pv.Value);
-                    cmd.Parameters.AddWithValue("@sID",   sensorId);
-                    cmd.ExecuteNonQuery();
-                }
-            }
-        }
 
-        private int GetRandomSensorId(MySqlConnection conn)
-        {
-            const string query = "SELECT SensorID FROM Sensor ORDER BY RAND() LIMIT 1";
-            using (var cmd = new MySqlCommand(query, conn))
-            {
-                object result = cmd.ExecuteScalar();
-                if (result == null)
-                    throw new InvalidOperationException("Es sind keine Sensoren in der Datenbank vorhanden.");
-                return Convert.ToInt32(result);
+                    int rowsAffected = cmd.ExecuteNonQuery();
+                    if (rowsAffected == 0)
+                        throw new InvalidOperationException("Es sind keine Sensoren in der Datenbank vorhanden.");
+                }
             }
         }
     }

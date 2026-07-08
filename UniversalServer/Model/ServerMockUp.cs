@@ -55,12 +55,7 @@ namespace UniversalServer.Model
 
             try
             {
-                // The state object is the Timer object.
-                Timer t = (Timer)state;
-                //t.Dispose();
-
-                //Protokoll to simulate: Temperatur;Luftfeuchte;Luftdruck;LUX;IR
-                //String dataSend = String((_temperatur + _temp) / 2) + ";" + String(_humidity) + ";" + String(_press) + ";" + String(tsl.calculateLux(_full, _ir)) + ";" + String(_ir);
+                // Protokoll to simulate: Temperatur;Luftfeuchte;Luftdruck;IP
                 Random rndm = new Random();
 
                 double temp = 22 + rndm.NextDouble() - rndm.NextDouble();
