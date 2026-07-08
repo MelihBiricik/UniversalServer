@@ -20,6 +20,7 @@ namespace UniversalServer.Model
         public event MessageReceivedEventHandler MessageReceived;
 
         Timer _tmr;
+        private int _isRunningTick;
 
 
 
@@ -47,33 +48,45 @@ namespace UniversalServer.Model
 
         private void TimerProc(object state)
         {
-            // The state object is the Timer object.
-            Timer t = (Timer)state;
-            //t.Dispose();
+            // Verhindert überlappende Ausführungen, falls der Timer (z.B. durch Debugging-Pausen)
+            // bereits fällige Ticks aufgestaut hat und mehrere Callbacks gleichzeitig anlaufen.
+            if (Interlocked.Exchange(ref _isRunningTick, 1) == 1)
+                return;
 
-            //Protokoll to simulate: Temperatur;Luftfeuchte;Luftdruck;LUX;IR
-            //String dataSend = String((_temperatur + _temp) / 2) + ";" + String(_humidity) + ";" + String(_press) + ";" + String(tsl.calculateLux(_full, _ir)) + ";" + String(_ir);
-            Random rndm = new Random();
+            try
+            {
+                // The state object is the Timer object.
+                Timer t = (Timer)state;
+                //t.Dispose();
 
-            double temp = 22 + rndm.NextDouble() - rndm.NextDouble();
-            double hum = 50 + rndm.Next(-5, 5);
-            int press = 1024 + rndm.Next(-20, 20);
-            string ip = new string[] {
-                "192.168.1.145",
-                "192.168.1.99",
-                "192.168.1.32",
-                "192.168.1.234",
-                "192.168.1.10",
-                "192.168.1.77",
-            }[rndm.Next(0, 5)];
+                //Protokoll to simulate: Temperatur;Luftfeuchte;Luftdruck;LUX;IR
+                //String dataSend = String((_temperatur + _temp) / 2) + ";" + String(_humidity) + ";" + String(_press) + ";" + String(tsl.calculateLux(_full, _ir)) + ";" + String(_ir);
+                Random rndm = new Random();
 
-            string data =
-                String.Format("{0:0.00}", temp) + ";" +
-                String.Format("{0:00.00}", hum) + ";" +
-                String.Format("{0:0000}", press) + ";" +
-                ip;
+                double temp = 22 + rndm.NextDouble() - rndm.NextDouble();
+                double hum = 50 + rndm.Next(-5, 5);
+                int press = 1024 + rndm.Next(-20, 20);
+                string ip = new string[] {
+                    "192.168.1.145",
+                    "192.168.1.99",
+                    "192.168.1.32",
+                    "192.168.1.234",
+                    "192.168.1.10",
+                    "192.168.1.77",
+                }[rndm.Next(0, 5)];
 
-            MessageReceived(data);
+                string data =
+                    String.Format(CultureInfo.InvariantCulture, "{0:0.00}", temp) + ";" +
+                    String.Format(CultureInfo.InvariantCulture, "{0:00.00}", hum) + ";" +
+                    String.Format(CultureInfo.InvariantCulture, "{0:0000}", press) + ";" +
+                    ip;
+
+                MessageReceived(data);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _isRunningTick, 0);
+            }
         }
 
         public void Stop()
