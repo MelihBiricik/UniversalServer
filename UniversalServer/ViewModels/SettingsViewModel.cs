@@ -1,9 +1,3 @@
-﻿using CommandHelper;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Input;
 using UniversalServer.Model;
 using UniversalServer.ViewModelBase;
@@ -13,45 +7,56 @@ namespace UniversalServer.ViewModels
     public class SettingsViewModel : ViewModel
     {
         private string _messageFromFileAccess;
+        private string _dbIPAddress;
+        private ICommand _saveSettingsCommand;
+        private readonly ISettingsRepository _settingsRepository;
+
+        public SettingsViewModel() : this(new FileAccess()) { }
+
+        public SettingsViewModel(ISettingsRepository settingsRepository)
+        {
+            _settingsRepository = settingsRepository;
+            _settingsRepository.DataSaved += OnDataSaved;
+        }
 
         public string MessageFromFileAccess
         {
-            get { return _messageFromFileAccess; }
-            set { _messageFromFileAccess = value;
+            get => _messageFromFileAccess;
+            set
+            {
+                _messageFromFileAccess = value;
                 OnPropertyChanged("MessageFromFileAccess");
             }
         }
-        public string DBIPAddress { get; set; }
 
-        ICommand _saveSettingsCommand;
-
-
+        public string DBIPAddress
+        {
+            get => _dbIPAddress;
+            set
+            {
+                _dbIPAddress = value;
+                OnPropertyChanged("DBIPAddress");
+            }
+        }
 
         public ICommand SaveSettingsCommand
         {
             get
             {
                 if (_saveSettingsCommand == null)
-                {
                     _saveSettingsCommand = new RelayCommand(c => ExecuteSaveSettingsCommand());
-                }
                 return _saveSettingsCommand;
-
             }
         }
 
         private void ExecuteSaveSettingsCommand()
         {
-            FileAccess fa = new FileAccess();
-            fa.DataSaved += Fa_DataSaved;
-
-            fa.SaveSettings(DBIPAddress);
-
+            _settingsRepository.SaveSettings(DBIPAddress);
         }
 
-        private void Fa_DataSaved(string msg)
+        private void OnDataSaved(string msg)
         {
-            _messageFromFileAccess = msg;
+            MessageFromFileAccess = msg;
         }
     }
 }

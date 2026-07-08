@@ -134,13 +134,20 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="Model\Raum.cs" />
     <Compile Include="Model\ConnectionData.cs" />
     <Compile Include="Model\DBAccess.cs" />
+    <Compile Include="Model\FileAccess.cs" />
     <Compile Include="Model\HumidValue.cs" />
     <Compile Include="Model\IRValues.cs" />
+    <Compile Include="Model\ISensorRepository.cs" />
     <Compile Include="Model\IServerContract.cs" />
+    <Compile Include="Model\ISettingsRepository.cs" />
+    <Compile Include="Model\LuxValues.cs" />
     <Compile Include="Model\PressureValue.cs" />
+    <Compile Include="Model\Raum.cs" />
+    <Compile Include="Model\SensorMessage.cs" />
+    <Compile Include="Model\SensorMessageParser.cs" />
+    <Compile Include="Model\SensorReadingTracker.cs" />
     <Compile Include="Model\Server.cs" />
     <Compile Include="Model\ServerMockUp.cs" />
     <Compile Include="Model\Station.cs" />
@@ -149,6 +156,7 @@
     <Compile Include="ViewModelBase\RelayCommand.cs" />
     <Compile Include="ViewModelBase\ViewModel.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
+    <Compile Include="ViewModels\SettingsViewModel.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

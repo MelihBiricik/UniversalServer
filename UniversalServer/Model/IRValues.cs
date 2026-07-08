@@ -10,7 +10,7 @@ namespace UniversalServer.Model
     {
         int _value;
         
-        public int Value { get => _value; set => _value = value; }
+        public new int Value { get => _value; set => _value = value; }
        
     }
 }

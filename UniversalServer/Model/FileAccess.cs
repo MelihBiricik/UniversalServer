@@ -9,7 +9,7 @@ namespace UniversalServer.Model
     public delegate void SettingsSavedEventHandler(string msg);
 
 
-    public class FileAccess
+    public class FileAccess : ISettingsRepository
     {
         public event SettingsSavedEventHandler DataSaved;
 

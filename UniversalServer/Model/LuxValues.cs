@@ -10,13 +10,10 @@ namespace UniversalServer.Model
     {
         int _value;
 
-        public int Value
+        public new int Value
         {
-            get
-            {
-                return _value;
-            }
-            set { _value = value; }
+            get => _value;
+            set => _value = value;
         }
     }
 }

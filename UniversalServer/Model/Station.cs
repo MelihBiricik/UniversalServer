@@ -15,6 +15,6 @@ namespace UniversalServer.Model
 
         public List<HumidValue> HumidValues;
         public List<TempValue> TempValues;
-        public List<PressureValue> PessureValues;
+        public List<PressureValue> PressureValues;
     }
 }

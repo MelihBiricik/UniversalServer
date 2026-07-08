@@ -1,150 +1,113 @@
-﻿using MySql.Data.MySqlClient;
+using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Globalization;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
 
 namespace UniversalServer.Model
 {
-    public class DBAccess
+    public class DBAccess : ISensorRepository
     {
-        private MySqlConnection _myConnection;
-        public DBAccess()
+        private readonly string _connectionString =
+            "SERVER=localhost;" +
+            "DATABASE=SmartHomeDB2;" +
+            "UID=root;" +
+            "PASSWORD=;";
+
+        private MySqlConnection OpenConnection()
         {
-            // 
-            _myConnection =
-                     new MySqlConnection(
-                         "SERVER=localhost;" +
-                         "DATABASE=SmartHomeDB2;" +
-                         "UID = root;" +
-                         "PASSWORD=;");
-        }
-        public void OpenConnectionToDBServer()
-        {
+            var conn = new MySqlConnection(_connectionString);
             try
             {
-                _myConnection.Open();
+                conn.Open();
+                return conn;
             }
             catch (Exception ex)
             {
-                Exception ex2 = new Exception($"Open zur DB hat nicht geklappt!!! Läuft die DB???" + Environment.NewLine + ex.Message);
-                throw ex2;
+                conn.Dispose();
+                throw new InvalidOperationException("Verbindung zur Datenbank fehlgeschlagen. Läuft der DB-Server?", ex);
             }
         }
+
         public List<Raum> GetRooms()
         {
             var rooms = new List<Raum>();
-            //try
-            //{
-                OpenConnectionToDBServer();
-                string query = "SELECT SensorID, Typ FROM Sensor ORDER BY Typ";
-                using (MySqlCommand cmd = new MySqlCommand(query, _myConnection))
-                using (MySqlDataReader reader = cmd.ExecuteReader())
+            using (var conn = OpenConnection())
+            {
+                const string query = "SELECT SensorID, Typ FROM Sensor ORDER BY Typ";
+                using (var cmd = new MySqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
                     {
                         rooms.Add(new Raum
                         {
                             RaumID = reader.GetInt32("SensorID"),
-                            Name = reader.GetString("Typ")
+                            Name   = reader.GetString("Typ")
                         });
                     }
                 }
-                _myConnection.Close();
-            //}
-            //catch (Exception ex)
-            //{
-            //    MessageBox.Show("Fehler beim Laden der Räume: " + ex.Message);
-            //}
+            }
             return rooms;
         }
 
         public (TempValue temp, HumidValue humid, PressureValue press) GetLatestDataForRoom(int sensorId)
         {
-            TempValue temp = null;
-            HumidValue humid = null;
-            PressureValue press = null;
-            try
+            using (var conn = OpenConnection())
             {
-                OpenConnectionToDBServer();
-                string query = "SELECT Zeitpunkt, Temperatur, Luftfeuchtigkeit, Luftdruck FROM Messwerte WHERE SensorID = @sid ORDER BY Zeitpunkt DESC LIMIT 1";
-                using (MySqlCommand cmd = new MySqlCommand(query, _myConnection))
+                const string query =
+                    "SELECT Zeitpunkt, Temperatur, Luftfeuchtigkeit, Luftdruck " +
+                    "FROM Messwerte WHERE SensorID = @sid ORDER BY Zeitpunkt DESC LIMIT 1";
+
+                using (var cmd = new MySqlCommand(query, conn))
                 {
                     cmd.Parameters.AddWithValue("@sid", sensorId);
-                    using (MySqlDataReader reader = cmd.ExecuteReader())
+                    using (var reader = cmd.ExecuteReader())
                     {
-                        if (reader.Read())
-                        {
-                            DateTime dt = reader.GetDateTime("Zeitpunkt");
-                            temp = new TempValue { DateAndTime = dt, Value = Convert.ToDouble(reader["Temperatur"]) };
-                            humid = new HumidValue { DateAndTime = dt, Value = Convert.ToDouble(reader["Luftfeuchtigkeit"]) };
-                            press = new PressureValue { DateAndTime = dt, Value = Convert.ToDouble(reader["Luftdruck"]) };
-                        }
+                        if (!reader.Read())
+                            return (null, null, null);
+
+                        DateTime dt = reader.GetDateTime("Zeitpunkt");
+                        return (
+                            new TempValue     { DateAndTime = dt, Value = Convert.ToDouble(reader["Temperatur"]) },
+                            new HumidValue    { DateAndTime = dt, Value = Convert.ToDouble(reader["Luftfeuchtigkeit"]) },
+                            new PressureValue { DateAndTime = dt, Value = Convert.ToDouble(reader["Luftdruck"]) }
+                        );
                     }
                 }
-                _myConnection.Close();
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Fehler beim Laden der Raumdaten: " + ex.Message);
-            }
-            return (temp, humid, press);
         }
 
         public void InsertData(TempValue tv, HumidValue hv, PressureValue pv, DateTime dt, string ip)
         {
-            try
+            using (var conn = OpenConnection())
             {
-                OpenConnectionToDBServer(); // Verbindung zur MySQL Workbench öffnen
+                int sensorId = FindSensorIdByIp(conn, ip);
 
-                // SCHRITT 1: Die SensorID für den Namen (z.B. "Wohnzimmer") herausfinden
-                string getSensorIdQuery = "SELECT SensorID FROM Sensor WHERE Typ = @name LIMIT 1";
-                int sID = -1;
+                const string insertQuery =
+                    "INSERT INTO Messwerte (Zeitpunkt, Temperatur, Luftfeuchtigkeit, Luftdruck, SensorID) " +
+                    "VALUES(@time, @temp, @hum, @press, @sID)";
 
-                MySqlCommand getLog = new MySqlCommand(getSensorIdQuery, _myConnection);
-
-                getLog.Parameters.AddWithValue("@name", ip);
-
-                // Wir führen den Befehl aus und holen uns die ID
-                object result = getLog.ExecuteScalar();
-
-                if (result != null)
+                using (var cmd = new MySqlCommand(insertQuery, conn))
                 {
-                    sID = Convert.ToInt32(result);
+                    cmd.Parameters.AddWithValue("@time",  dt);
+                    cmd.Parameters.AddWithValue("@temp",  tv.Value);
+                    cmd.Parameters.AddWithValue("@hum",   hv.Value);
+                    cmd.Parameters.AddWithValue("@press", pv.Value);
+                    cmd.Parameters.AddWithValue("@sID",   sensorId);
+                    cmd.ExecuteNonQuery();
                 }
-                if (sID != -1) 
-                {  
-                // SCHRITT 2: Den Messwert mit der gefundenen SensorID speichern
-                    string insertQuery = "INSERT INTO Messwerte (Zeitpunkt, Temperatur, Luftfeuchtigkeit, Luftdruck, SensorID)" + 
-                                         "VALUES(@time, @temp, @hum, @press, @sID)";
-
-
-                    using (MySqlCommand cmd = new MySqlCommand(insertQuery, _myConnection))
-                    {
-                        // Parametreleri şemadaki DECIMAL(5,2) yapısına uygun gönderiyoruz
-                        cmd.Parameters.AddWithValue("@time", dt);
-                        cmd.Parameters.AddWithValue("@temp", tv.Value);
-                        cmd.Parameters.AddWithValue("@hum", hv.Value);
-                        cmd.Parameters.AddWithValue("@press", pv.Value);
-                        cmd.Parameters.AddWithValue("@sID", sID);
-
-                        cmd.ExecuteNonQuery(); // Daten in die Datenbank schreiben
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("Sensor '" + ip + "' wurde nicht in der Datenbank gefunden!");
-                }
-                _myConnection.Close(); // Tür wieder schließen
             }
-            catch (Exception ex)
+        }
+
+        private int FindSensorIdByIp(MySqlConnection conn, string ip)
+        {
+            const string query = "SELECT SensorID FROM Sensor WHERE Typ = @name LIMIT 1";
+            using (var cmd = new MySqlCommand(query, conn))
             {
-                MessageBox.Show("Fehler beim Speichern: " + ex.Message);
+                cmd.Parameters.AddWithValue("@name", ip);
+                object result = cmd.ExecuteScalar();
+                if (result == null)
+                    throw new InvalidOperationException($"Sensor '{ip}' wurde nicht in der Datenbank gefunden.");
+                return Convert.ToInt32(result);
             }
         }
     }

@@ -1,103 +1,78 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Linq;
 using System.Net;
-using System.Net.Sockets;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using UniversalServer.Model;
 using UniversalServer.ViewModelBase;
 
-
 namespace UniversalServer.ViewModels
 {
     class MainViewModel : ViewModel
     {
-
         #region Fields
-        DBAccess _dba = new DBAccess();
-        List<IPAddress> _avIPAdresses;
-        int _portToListen;
-        IPAddress _selectedIPAdress;
-        List<Raum> _availableRooms;
-        Raum _selectedRaum;
+        private readonly ISensorRepository _sensorRepository;
+        private IServerContract _serv;
+        private volatile bool _isRunning = false;
         private bool _isDbConnected = false;
+
+        private List<IPAddress> _avIPAdresses;
+        private int _portToListen;
+        private IPAddress _selectedIPAdress;
+        private List<Raum> _availableRooms;
+        private Raum _selectedRaum;
+        private string _status;
+
+        private readonly SensorReadingTracker<TempValue>     _tempTracker     = new SensorReadingTracker<TempValue>();
+        private readonly SensorReadingTracker<HumidValue>    _humidTracker    = new SensorReadingTracker<HumidValue>();
+        private readonly SensorReadingTracker<PressureValue> _pressureTracker = new SensorReadingTracker<PressureValue>();
 
         private ICommand _windowLoadedCommand;
         private ICommand _startListeningCommand;
         private ICommand _stopListeningCommand;
-        private IServerContract _serv;
-        private string _status;
-        private volatile bool _isRunning = false;
-
-        TempValue _tempMaxVal;
-        TempValue _tempCurrentVal;
-        TempValue _tempMinVal;
-
-        HumidValue _humiMaxVal;
-        HumidValue _humiCurrentVal;
-        HumidValue _humiMinVal;
-
-        PressureValue _pressMaxVal;
-        PressureValue _pressCurrentVal;
-        PressureValue _pressMinVal;
         #endregion
 
-        #region Properties
+        #region Constructors
+        public MainViewModel() : this(new DBAccess()) { }
+
+        public MainViewModel(ISensorRepository sensorRepository)
+        {
+            _sensorRepository = sensorRepository;
+            _portToListen = 11000;
+        }
+        #endregion
+
+        #region Network Properties
         public int PortToListen
         {
-            get
-            {
-                return _portToListen;
-            }
-            set
-            {
-                _portToListen = value;
-                OnPropertyChanged("PortToListen");
-            }
+            get => _portToListen;
+            set { _portToListen = value; OnPropertyChanged("PortToListen"); }
         }
+
         public ObservableCollection<IPAddress> AvailableIPAdresses
         {
-            get
-            {
-                if(_avIPAdresses != null)
-                    return new ObservableCollection<IPAddress>(_avIPAdresses);
-                else
-                    return new ObservableCollection<IPAddress>();
-            }
-            set
-            {
-                _avIPAdresses = value.ToList<IPAddress>();
-                OnPropertyChanged("AvailableIPAdresses");
-            }
+            get => _avIPAdresses != null
+                ? new ObservableCollection<IPAddress>(_avIPAdresses)
+                : new ObservableCollection<IPAddress>();
+            set { _avIPAdresses = value.ToList(); OnPropertyChanged("AvailableIPAdresses"); }
         }
 
         public IPAddress SelectedIPAdress
         {
-            get
-            {
-                return _selectedIPAdress;
-            }
-            set
-            {
-                _selectedIPAdress = value;
-                OnPropertyChanged("SelectedIPAdress");
-            }
+            get => _selectedIPAdress;
+            set { _selectedIPAdress = value; OnPropertyChanged("SelectedIPAdress"); }
         }
+        #endregion
 
+        #region Room Properties
         public ObservableCollection<Raum> AvailableRooms
         {
             get => _availableRooms != null
                 ? new ObservableCollection<Raum>(_availableRooms)
                 : new ObservableCollection<Raum>();
-            set
-            {
-                _availableRooms = value.ToList();
-                OnPropertyChanged("AvailableRooms");
-            }
+            set { _availableRooms = value.ToList(); OnPropertyChanged("AvailableRooms"); }
         }
 
         public Raum SelectedRaum
@@ -111,127 +86,45 @@ namespace UniversalServer.ViewModels
                     LoadRoomData(_selectedRaum.RaumID);
             }
         }
+        #endregion
 
-        public HumidValue FeuchteMaxValue
-        {
-            get
-            {
-                return _humiMaxVal;
-            }
-            set
-            {
-                _humiMaxVal = value;
-                OnPropertyChanged("FeuchteMaxValue");
-            }
-        }
-        public HumidValue FeuchteAktuellValue
-        {
-            get
-            {
-                return _humiCurrentVal;
-            }
-            set
-            {
-                _humiCurrentVal = value;
-                OnPropertyChanged("FeuchteAktuellValue");
-            }
-        }
-        public HumidValue FeuchteMinValue
-        {
-            get
-            {
-                return _humiMinVal;
-            }
-            set
-            {
-                _humiMinVal = value;
-                OnPropertyChanged("FeuchteMinValue");
-            }
-        }
-        public TempValue TempMaxValue
-        {
-            get
-            {
-                return _tempMaxVal;
-            }
-            set
-            {
-                _tempMaxVal = value;
-                OnPropertyChanged("TempMaxValue");
-            }
-        }
-        public TempValue TempAktuellValue
-        {
-            get
-            {
-                return _tempCurrentVal;
-            }
-            set
-            {
-                _tempCurrentVal = value;
-                OnPropertyChanged("TempAktuellValue");
-            }
-        }
-        public TempValue TempMinValue
-        {
-            get
-            {
-                return _tempMinVal;
-            }
+        #region Sensor Value Properties
+        public TempValue TempMaxValue     => _tempTracker.Max;
+        public TempValue TempAktuellValue => _tempTracker.Current;
+        public TempValue TempMinValue     => _tempTracker.Min;
 
-            set
-            {
-                _tempMinVal = value;
-                OnPropertyChanged("TempMinValue");
-            }
-        }
-        public PressureValue PressMaxVal
-        {
-            get => _pressMaxVal;
-            set
-            {
-                _pressMaxVal = value;
-                OnPropertyChanged("PressMaxVal");
-            }
-        }
-        public string ShortValuesString { get => _tempCurrentVal?.Value + ", " + _humiCurrentVal?.Value + ", " + _pressCurrentVal?.Value; }
-        public PressureValue PressCurrentVal { get => _pressCurrentVal; set { _pressCurrentVal = value; OnPropertyChanged("PressCurrentVal"); } }
-        public PressureValue PressMinVal { get => _pressMinVal; set { _pressMinVal = value; OnPropertyChanged("PressMinVal"); } }
+        public HumidValue FeuchteMaxValue     => _humidTracker.Max;
+        public HumidValue FeuchteAktuellValue => _humidTracker.Current;
+        public HumidValue FeuchteMinValue     => _humidTracker.Min;
+
+        public PressureValue PressMaxVal    => _pressureTracker.Max;
+        public PressureValue PressCurrentVal => _pressureTracker.Current;
+        public PressureValue PressMinVal    => _pressureTracker.Min;
+
+        public string ShortValuesString =>
+            _tempTracker.Current?.Value + ", " +
+            _humidTracker.Current?.Value + ", " +
+            _pressureTracker.Current?.Value;
+
         public string Status
         {
-            get
-            {
-                return _status;
-            }
-            set
-            {
-                _status = value;
-                OnPropertyChanged("Status");
-            }
+            get => _status;
+            set { _status = value; OnPropertyChanged("Status"); }
         }
-        #endregion  
+        #endregion
 
-        public MainViewModel()
-        {
-            _portToListen = 11000;
-            _avIPAdresses = null;
-            _selectedIPAdress = null;
-        }
-
+        #region Commands
         public ICommand WindowLoaded
         {
             get
             {
                 if (_windowLoadedCommand == null)
-                {
                     _windowLoadedCommand = new RelayCommand(c => ExecuteWindowLoadedCommand());
-                }
                 return _windowLoadedCommand;
-
             }
         }
 
-
+        // XAML bindet per Behavior an diesen Namen
         public ICommand LoadedCommand => WindowLoaded;
 
         public ICommand StartListeningCommand
@@ -239,11 +132,8 @@ namespace UniversalServer.ViewModels
             get
             {
                 if (_startListeningCommand == null)
-                {
                     _startListeningCommand = new RelayCommand(c => StartListening(), c => !_isRunning);
-                }
                 return _startListeningCommand;
-
             }
         }
 
@@ -252,82 +142,15 @@ namespace UniversalServer.ViewModels
             get
             {
                 if (_stopListeningCommand == null)
-                {
                     _stopListeningCommand = new RelayCommand(c => StopListening(), c => _isRunning);
-                }
                 return _stopListeningCommand;
-
             }
         }
+        #endregion
 
-        private void StartListening()
-        {
-            try
-            {
-                // Wenn noch keine Server-Instanz existiert, anlegen und Events abonnieren.
-                if (_serv == null)
-                {
-                    _serv = new ServerMockUp(); //zum Testen kann auch ein MockUp als Datenquelle verwendet werden.
-                    _serv.StatusPropertyChanged += Serv_StatusPropertyChanged;
-                    _serv.MessageReceived += _serv_MessageReceived;
-                }
-
-                // Start oder resume des Servers/Mockups
-                _serv.Start(SelectedIPAdress, PortToListen);
-
-                // Merken, dass wir laufen, damit Commands korrekt aktiv/disabled sind
-                _isRunning = true;
-                Status = "Listening...";
-
-                // Command-Manager neu auswerten damit Buttons ihren Enabled-Status aktualisieren
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
-            }
-            catch (Exception ex)
-            {
-                Status = "Error while starting: " + ex.Message;
-            }
-
-        }
-
-        private void StopListening()
-        {
-            try
-            {
-                if (_serv != null)
-                {
-                    // Pause handling further incoming messages on UI
-                    _isRunning = false;
-
-                    // Pause server but keep instance so Start can resume
-                    _serv.Stop();
-
-                    Status = "Paused listening.";
-
-                    // Update command states
-                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
-                }
-                else
-                {
-                    Status = "Server is not running.";
-                }
-            }
-            catch (Exception ex)
-            {
-                Status = "Error while stopping: " + ex.Message;
-            }
-        }
-
+        #region Initialization
         private void ExecuteWindowLoadedCommand()
         {
-            //try
-            //{
-            //    _dba.OpenConnectionToDBServer();
-            //}
-            //catch (Exception ex)
-            //{
-            //    Status = ex.Message;
-            //}
-
             try
             {
                 IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
@@ -343,7 +166,7 @@ namespace UniversalServer.ViewModels
 
             try
             {
-                var rooms = _dba.GetRooms();
+                var rooms = _sensorRepository.GetRooms();
                 AvailableRooms = new ObservableCollection<Raum>(rooms);
                 _isDbConnected = true;
             }
@@ -354,77 +177,132 @@ namespace UniversalServer.ViewModels
                 AvailableRooms = new ObservableCollection<Raum>(GetMockRooms());
             }
         }
+        #endregion
 
-        private List<Raum> GetMockRooms()
+        #region Server Control
+        private void StartListening()
         {
-            return new List<Raum>
-            {                 
-                 new Raum { RaumID = 1, Name = "Wohnzimmer" },
-                 new Raum { RaumID = 2, Name = "Küche" },
-                 new Raum { RaumID = 3, Name = "Bad" },
-                 new Raum { RaumID = 4, Name = "Kinderzimmer" },
-                 new Raum { RaumID = 5, Name = "Terasse" },
-            };
-        }
-
-        private (TempValue temp, HumidValue humid, PressureValue press) GetMockDataForRoom(int raumId)
-        {
-            DateTime now = DateTime.Now;
-            switch (raumId)
+            try
             {
-                case 1: return (new TempValue    { DateAndTime = now, Value = 21.5 },
-                                new HumidValue   { DateAndTime = now, Value = 48.0 },
-                                new PressureValue{ DateAndTime = now, Value = 1013.0 });
-                case 2: return (new TempValue    { DateAndTime = now, Value = 23.0 },
-                                new HumidValue   { DateAndTime = now, Value = 55.0 },
-                                new PressureValue{ DateAndTime = now, Value = 1012.0 });
-                case 3: return (new TempValue    { DateAndTime = now, Value = 22.0 },
-                                new HumidValue   { DateAndTime = now, Value = 65.0 },
-                                new PressureValue{ DateAndTime = now, Value = 1011.0 });
-                case 4: return (new TempValue    { DateAndTime = now, Value = 20.0 },
-                                new HumidValue   { DateAndTime = now, Value = 50.0 },
-                                new PressureValue{ DateAndTime = now, Value = 1013.5 });
-                case 5: return (new TempValue    { DateAndTime = now, Value = 18.5 },
-                                new HumidValue   { DateAndTime = now, Value = 60.0 },
-                                new PressureValue{ DateAndTime = now, Value = 1010.0 });
-                default: return (new TempValue    { DateAndTime = now, Value = 0.0 },
-                                 new HumidValue   { DateAndTime = now, Value = 0.0 },
-                                 new PressureValue{ DateAndTime = now, Value = 0.0 });
+                if (_serv == null)
+                {
+                    _serv = new ServerMockUp();
+                    _serv.StatusPropertyChanged += Serv_StatusPropertyChanged;
+                    _serv.MessageReceived += OnMessageReceived;
+                }
+
+                _serv.Start(SelectedIPAdress, PortToListen);
+                _isRunning = true;
+                Status = "Listening...";
+                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            }
+            catch (Exception ex)
+            {
+                Status = "Error while starting: " + ex.Message;
             }
         }
 
+        private void StopListening()
+        {
+            try
+            {
+                if (_serv != null)
+                {
+                    _isRunning = false;
+                    _serv.Stop();
+                    Status = "Paused listening.";
+                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                }
+                else
+                {
+                    Status = "Server is not running.";
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = "Error while stopping: " + ex.Message;
+            }
+        }
+
+        private void Serv_StatusPropertyChanged(string s) => Status = s;
+        #endregion
+
+        #region Message Handling
+        private void OnMessageReceived(string raw)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    SensorMessage msg = SensorMessageParser.Parse(raw);
+
+                    try
+                    {
+                        _sensorRepository.InsertData(
+                            msg.ToTempValue(), msg.ToHumidValue(), msg.ToPressValue(),
+                            msg.ReceivedAt, msg.IpAddress);
+                    }
+                    catch (Exception dbEx)
+                    {
+                        DispatchStatus(dbEx.Message);
+                    }
+
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        if (!_isRunning) return;
+
+                        Status = DateTime.Now.ToShortTimeString() + ": " + raw;
+                        ApplySensorUpdate(msg);
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    DispatchStatus("Fehler beim Interpretieren der Werte. " + ex.Message + Environment.NewLine + raw);
+                }
+            });
+        }
+
+        private void ApplySensorUpdate(SensorMessage msg)
+        {
+            _tempTracker.Update(msg.ToTempValue());
+            OnPropertyChanged("TempAktuellValue");
+            OnPropertyChanged("TempMaxValue");
+            OnPropertyChanged("TempMinValue");
+
+            _humidTracker.Update(msg.ToHumidValue());
+            OnPropertyChanged("FeuchteAktuellValue");
+            OnPropertyChanged("FeuchteMaxValue");
+            OnPropertyChanged("FeuchteMinValue");
+
+            _pressureTracker.Update(msg.ToPressValue());
+            OnPropertyChanged("PressCurrentVal");
+            OnPropertyChanged("PressMaxVal");
+            OnPropertyChanged("PressMinVal");
+
+            OnPropertyChanged("ShortValuesString");
+        }
+
+        private void DispatchStatus(string message) =>
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => Status = message));
+        #endregion
+
+        #region Room Data
         private void LoadRoomData(int sensorId)
         {
             if (!_isDbConnected)
             {
                 Status = $"Keine DB-Verbindung – Mock-Daten für: {_selectedRaum.Name}";
-                //return;
                 var (mockTemp, mockHumid, mockPress) = GetMockDataForRoom(sensorId);
-                TempAktuellValue  = mockTemp;
-                TempMaxValue      = mockTemp;
-                TempMinValue      = mockTemp;
-                FeuchteAktuellValue = mockHumid;
-                FeuchteMaxValue     = mockHumid;
-                FeuchteMinValue     = mockHumid;
-                PressCurrentVal   = mockPress;
-                PressMaxVal       = mockPress;
-                PressMinVal       = mockPress;
+                ResetTrackers(mockTemp, mockHumid, mockPress);
                 return;
             }
+
             try
             {
-                var (temp, humid, press) = _dba.GetLatestDataForRoom(sensorId);
+                var (temp, humid, press) = _sensorRepository.GetLatestDataForRoom(sensorId);
                 if (temp != null)
                 {
-                    TempAktuellValue = temp;
-                    TempMaxValue = temp;
-                    TempMinValue = temp;
-                    FeuchteAktuellValue = humid;
-                    FeuchteMaxValue = humid;
-                    FeuchteMinValue = humid;
-                    PressCurrentVal = press;
-                    PressMaxVal = press;
-                    PressMinVal = press;
+                    ResetTrackers(temp, humid, press);
                     Status = $"Raumdaten geladen: {_selectedRaum.Name}";
                 }
                 else
@@ -438,94 +316,63 @@ namespace UniversalServer.ViewModels
             }
         }
 
-
-        private void Serv_StatusPropertyChanged(string s)
+        private void ResetTrackers(TempValue temp, HumidValue humid, PressureValue press)
         {
-            Status = s;
+            _tempTracker.Reset(temp);
+            _humidTracker.Reset(humid);
+            _pressureTracker.Reset(press);
+
+            OnPropertyChanged("TempAktuellValue");
+            OnPropertyChanged("TempMaxValue");
+            OnPropertyChanged("TempMinValue");
+            OnPropertyChanged("FeuchteAktuellValue");
+            OnPropertyChanged("FeuchteMaxValue");
+            OnPropertyChanged("FeuchteMinValue");
+            OnPropertyChanged("PressCurrentVal");
+            OnPropertyChanged("PressMaxVal");
+            OnPropertyChanged("PressMinVal");
+            OnPropertyChanged("ShortValuesString");
         }
+        #endregion
 
-
-        private void _serv_MessageReceived(string msg)
+        #region Mock Data
+        private List<Raum> GetMockRooms()
         {
-            // Handle incoming messages on a background thread to avoid blocking UI.
-            var incoming = msg;
-            Task.Run(() =>
+            return new List<Raum>
             {
-                try
-                {
-                    var parts = incoming.Split(';');
-                    var tempStr = parts[0].Replace('.', ',');
-                    var humStr = parts[1].Replace('.', ',');
-                    var pressStr = parts[2].Replace('.', ',');
-                    var ipAdr = parts.Length > 3 ? parts[3] : string.Empty;
-
-                    double t = Convert.ToDouble(tempStr);
-                    double luftfeuchte = Convert.ToDouble(humStr);
-                    double druck = Convert.ToDouble(pressStr);
-
-                    var newTemp = new TempValue() { DateAndTime = DateTime.Now, Value = t };
-                    var newHum = new HumidValue() { DateAndTime = DateTime.Now, Value = luftfeuchte };
-                    var newPress = new PressureValue() { DateAndTime = DateTime.Now, Value = druck };
-
-                    // write to DB on background thread
-                    try
-                    {
-                        _dba.InsertData(newTemp, newHum, newPress, DateTime.Now, ipAdr);
-                    }
-                    catch (Exception dbex)
-                    {
-                        // update status on UI
-                        System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() => Status = dbex.Message));
-                    }
-
-                    // update UI-bound properties on UI thread
-                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        // If we've been stopped in the meantime, ignore updates.
-                        if (!_isRunning)
-                        {
-                            return;
-                        }
-
-                        Status = DateTime.Now.ToShortTimeString() + ": " + incoming;
-
-                        TempAktuellValue = newTemp;
-                        FeuchteAktuellValue = newHum;
-                        PressCurrentVal = newPress;
-
-                        // detect wrong command
-                        if (incoming.Contains("DROP"))
-                        {
-                            Status = "Fehler beim Interpretieren der Werte. " + incoming;
-                            return;
-                        }
-
-                        // Max/Min logic
-                        if (TempMaxValue == null || TempAktuellValue.Value > TempMaxValue.Value)
-                            TempMaxValue = TempAktuellValue;
-                        if (TempMinValue == null || TempAktuellValue.Value < TempMinValue.Value)
-                            TempMinValue = TempAktuellValue;
-
-                        if (FeuchteMaxValue == null || FeuchteAktuellValue.Value > FeuchteMaxValue.Value)
-                            FeuchteMaxValue = FeuchteAktuellValue;
-                        if (FeuchteMinValue == null || FeuchteAktuellValue.Value < FeuchteMinValue.Value)
-                            FeuchteMinValue = FeuchteAktuellValue;
-
-                        if (PressMaxVal == null || PressCurrentVal.Value > PressMaxVal.Value)
-                            PressMaxVal = PressCurrentVal;
-                        if (PressMinVal == null || PressCurrentVal.Value < PressMinVal.Value)
-                            PressMinVal = PressCurrentVal;
-                    }));
-                }
-                catch (Exception ex)
-                {
-                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        Status = "Fehler beim Interpretieren der Werte. " + ex.Message + Environment.NewLine + incoming;
-                    }));
-                }
-            });
+                new Raum { RaumID = 1, Name = "Wohnzimmer" },
+                new Raum { RaumID = 2, Name = "Küche" },
+                new Raum { RaumID = 3, Name = "Bad" },
+                new Raum { RaumID = 4, Name = "Kinderzimmer" },
+                new Raum { RaumID = 5, Name = "Schlafzimmer" },
+            };
         }
 
+        private (TempValue temp, HumidValue humid, PressureValue press) GetMockDataForRoom(int raumId)
+        {
+            DateTime now = DateTime.Now;
+            switch (raumId)
+            {
+                case 1: return (new TempValue { DateAndTime = now, Value = 21.5 },
+                                new HumidValue { DateAndTime = now, Value = 48.0 },
+                                new PressureValue { DateAndTime = now, Value = 1013.0 });
+                case 2: return (new TempValue { DateAndTime = now, Value = 23.0 },
+                                new HumidValue { DateAndTime = now, Value = 55.0 },
+                                new PressureValue { DateAndTime = now, Value = 1012.0 });
+                case 3: return (new TempValue { DateAndTime = now, Value = 22.0 },
+                                new HumidValue { DateAndTime = now, Value = 65.0 },
+                                new PressureValue { DateAndTime = now, Value = 1011.0 });
+                case 4: return (new TempValue { DateAndTime = now, Value = 20.0 },
+                                new HumidValue { DateAndTime = now, Value = 50.0 },
+                                new PressureValue { DateAndTime = now, Value = 1013.5 });
+                case 5: return (new TempValue { DateAndTime = now, Value = 18.5 },
+                                new HumidValue { DateAndTime = now, Value = 60.0 },
+                                new PressureValue { DateAndTime = now, Value = 1010.0 });
+                default: return (new TempValue { DateAndTime = now, Value = 0.0 },
+                                 new HumidValue { DateAndTime = now, Value = 0.0 },
+                                 new PressureValue { DateAndTime = now, Value = 0.0 });
+            }
+        }
+        #endregion
     }
 }
