@@ -32,7 +32,7 @@ namespace UniversalServer.Model
             var rooms = new List<Raum>();
             using (var conn = OpenConnection())
             {
-                const string query = "SELECT SensorID, Typ FROM Sensor ORDER BY Typ";
+                const string query = "SELECT RaumID, Name FROM Raum ORDER BY Name";
                 using (var cmd = new MySqlCommand(query, conn))
                 using (var reader = cmd.ExecuteReader())
                 {
@@ -40,8 +40,8 @@ namespace UniversalServer.Model
                     {
                         rooms.Add(new Raum
                         {
-                            RaumID = reader.GetInt32("SensorID"),
-                            Name   = reader.GetString("Typ")
+                            RaumID = reader.GetInt32("RaumID"),
+                            Name   = reader.GetString("Name")
                         });
                     }
                 }
@@ -49,17 +49,19 @@ namespace UniversalServer.Model
             return rooms;
         }
 
-        public (TempValue temp, HumidValue humid, PressureValue press) GetLatestDataForRoom(int sensorId)
+        public (TempValue temp, HumidValue humid, PressureValue press) GetLatestDataForRoom(int raumId)
         {
             using (var conn = OpenConnection())
             {
                 const string query =
-                    "SELECT Zeitpunkt, Temperatur, Luftfeuchtigkeit, Luftdruck " +
-                    "FROM Messwerte WHERE SensorID = @sid ORDER BY Zeitpunkt DESC LIMIT 1";
+                    "SELECT m.Zeitpunkt, m.Temperatur, m.Luftfeuchtigkeit, m.Luftdruck " +
+                    "FROM Messwerte m " +
+                    "JOIN Sensor s ON s.SensorID = m.SensorID " +
+                    "WHERE s.RaumID = @raumId ORDER BY m.Zeitpunkt DESC LIMIT 1";
 
                 using (var cmd = new MySqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("@sid", sensorId);
+                    cmd.Parameters.AddWithValue("@raumId", raumId);
                     using (var reader = cmd.ExecuteReader())
                     {
                         if (!reader.Read())
@@ -76,11 +78,11 @@ namespace UniversalServer.Model
             }
         }
 
-        public void InsertData(TempValue tv, HumidValue hv, PressureValue pv, DateTime dt, string ip)
+        public void InsertData(TempValue tv, HumidValue hv, PressureValue pv, DateTime dt)
         {
             using (var conn = OpenConnection())
             {
-                int sensorId = FindSensorIdByIp(conn, ip);
+                int sensorId = GetRandomSensorId(conn);
 
                 const string insertQuery =
                     "INSERT INTO Messwerte (Zeitpunkt, Temperatur, Luftfeuchtigkeit, Luftdruck, SensorID) " +
@@ -98,15 +100,14 @@ namespace UniversalServer.Model
             }
         }
 
-        private int FindSensorIdByIp(MySqlConnection conn, string ip)
+        private int GetRandomSensorId(MySqlConnection conn)
         {
-            const string query = "SELECT SensorID FROM Sensor WHERE Typ = @name LIMIT 1";
+            const string query = "SELECT SensorID FROM Sensor ORDER BY RAND() LIMIT 1";
             using (var cmd = new MySqlCommand(query, conn))
             {
-                cmd.Parameters.AddWithValue("@name", ip);
                 object result = cmd.ExecuteScalar();
                 if (result == null)
-                    throw new InvalidOperationException($"Sensor '{ip}' wurde nicht in der Datenbank gefunden.");
+                    throw new InvalidOperationException("Es sind keine Sensoren in der Datenbank vorhanden.");
                 return Convert.ToInt32(result);
             }
         }

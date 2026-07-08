@@ -7,6 +7,6 @@ namespace UniversalServer.Model
     {
         List<Raum> GetRooms();
         (TempValue temp, HumidValue humid, PressureValue press) GetLatestDataForRoom(int sensorId);
-        void InsertData(TempValue tv, HumidValue hv, PressureValue pv, DateTime dt, string ip);
+        void InsertData(TempValue tv, HumidValue hv, PressureValue pv, DateTime dt);
     }
 }

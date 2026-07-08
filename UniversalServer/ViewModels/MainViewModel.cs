@@ -240,7 +240,7 @@ namespace UniversalServer.ViewModels
                     {
                         _sensorRepository.InsertData(
                             msg.ToTempValue(), msg.ToHumidValue(), msg.ToPressValue(),
-                            msg.ReceivedAt, msg.IpAddress);
+                            msg.ReceivedAt);
                     }
                     catch (Exception dbEx)
                     {
